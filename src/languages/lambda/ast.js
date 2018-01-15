@@ -6,6 +6,8 @@ export class Conditional extends ASTNode {
     this.condStatement = condStatement;
     this.thenStatement = thenStatement;
     this.elseStatement = elseStatement;
+    this.pieces = ["if (", this.condStatement, ") {",this.thenStatement,"}"];
+    if(this.elseStatement) { this.pieces.push(" else {", this.body, "}")};
   }
 
   *[Symbol.iterator]() {
@@ -21,13 +23,6 @@ export class Conditional extends ASTNode {
         yield node;
       }
     }
-  }
-
-  toString() {
-    if (!this.elseStatement) {
-      return `if (${this.condStatement}) { ${this.thenStatement.join(' ')} }`;
-    }
-    return `if (${this.condStatement}) { ${this.thenStatement.join(' ')} } else { ${this.body} })`;
   }
 }
 
@@ -51,7 +46,6 @@ export class Assignment extends ASTNode {
   }
 }
 
-//TODO: add a toString() method
 //is it possible to merge this somehow with assign class? Almost identical with it
 export class Binary extends ASTNode {
   constructor(from, to, operator, left, right, options={}) {
@@ -59,6 +53,7 @@ export class Binary extends ASTNode {
     this.operator = operator;
     this.left = left;
     this.right = right;
+    this.pieces = [left, operator, right];
   }
 
   *[Symbol.iterator]() {
@@ -72,12 +67,12 @@ export class Binary extends ASTNode {
   }
 }
 
-//TODO: add a toString() method
 //use struct toString method as template for this toString() method?
 export class Prog extends ASTNode {
   constructor(from, to, prog, options={}) {
     super(from, to, 'prog', options);
     this.prog = prog;
+    this.pieces = [prog];
   }
 
   *[Symbol.iterator]() {
@@ -88,12 +83,12 @@ export class Prog extends ASTNode {
   }
 }
 
-//TODO: add a toString() method
 export class Let extends ASTNode {
   constructor(from, to, vars, body, options={}) {
     super(from, to, 'let', options);
     this.vars = vars;
     this.body = body;
+    this.pieces = [vars, body];
   }
 
   *[Symbol.iterator]() {

@@ -6,6 +6,7 @@ export class LetLikeExpr extends ASTNode {
     this.form = form;
     this.bindings = bindings;
     this.expr = expr;
+    this.pieces = ["(",form,"(",this.bindings,")",this.expr,")"];
   }
 
   *[Symbol.iterator]() {
@@ -18,10 +19,6 @@ export class LetLikeExpr extends ASTNode {
     if((this['aria-level']- level) >= descDepth) return this.options['aria-label'];
     return `a ${this.form} expression with ${pluralize("binding", this.bindings.exprs)}`;
   }
-
-  toString() {
-    return `(${this.form} (${this.bindings.toString()}) ${this.expr.toString()}`;
-  }
 }
 
 export class WhenUnless extends ASTNode {
@@ -30,6 +27,7 @@ export class WhenUnless extends ASTNode {
     this.form = form;
     this.predicate = predicate;
     this.exprs = exprs;
+    this.pieces = ["(", form, "(", predicate, ")", this.exprs]
   }
 
   *[Symbol.iterator]() {
@@ -41,9 +39,5 @@ export class WhenUnless extends ASTNode {
   toDescription(level){
     if((this['aria-level']- level) >= descDepth) return this.options['aria-label'];
     return `a ${this.form} expression: ${this.form} ${this.predicate.toDescription(level)}, ${this.exprs.toDescription(level)}`;
-  }
-
-  toString() {
-    return `(${this.form} (${this.predicate.toString()}) ${this.exprs.toString()})`;
   }
 }

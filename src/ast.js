@@ -72,7 +72,8 @@ export class AST {
       var children = [...node].slice(1); // the first elt is always the parent
       this.annotateNodes(children, node);
     });
-  } 
+  }
+
 
   // patch : AST ChangeObj -> AST
   // given a new AST, return a new one patched from the current one
@@ -189,10 +190,29 @@ export class ASTNode {
     // Every node also has a globally unique `id` which can be used to look up
     // it's corresponding DOM element, or to look it up in `AST.nodeIdMap`
     this.id = uuidv4(); // generate a unique ID
+
+    // every node keeps track of it's "pieces": strings and children that make
+    // up the original, textual representation
+    this.pieces = [];
   }
 
   toDescription(){
     return this.options["aria-label"];
+  } 
+
+  // toString : void -> String
+  // produce the EXACT text representation of the node
+  toString() {
+    let str = "", {ch, line} = this.from;
+    this.pieces.forEach(n => {
+      if(n.type){ // if it's an ASTNode, compute \n and " ", and then add the node's string
+        n = "\n".repeat(n.from.line-line)+" ".repeat(n.from.ch-(n.from.line==line? ch:0))+n.toString();
+      }
+      let lines = n.split(/\r\n|\r|\n/), lastLineChs = lines[lines.length-1].length;
+      str += n; line += lines.length-1; ch = lastLineChs + (lines.length==1? ch:0);
+    });
+    if(ch !== this.to.ch || line !== this.to.line) console.warn("toString() measurement error!", str);
+    return str;
   }
 }
 
@@ -200,6 +220,7 @@ export class Unknown extends ASTNode {
   constructor(from, to, elts, options={}) {
     super(from, to, 'unknown', options);
     this.elts = elts;
+    this.pieces = ["(", ...elts, ")"];
   }
 
   *[Symbol.iterator]() {
@@ -214,10 +235,6 @@ export class Unknown extends ASTNode {
     return `an unknown expression with ${pluralize("children", this.elts)} `+ 
       this.elts.map((e, i, elts)  => (elts.length>1? (i+1) + ": " : "")+ e.toDescription(level)).join(", ");
   }
-
-  toString() {
-    return `(${this.func} ${this.args.join(' ')})`;
-  }
 }
 
 export class Expression extends ASTNode {
@@ -225,6 +242,7 @@ export class Expression extends ASTNode {
     super(from, to, 'expression', options);
     this.func = func;
     this.args = args;
+    this.pieces = ["(", func, ...args, ")"];
   }
 
   *[Symbol.iterator]() {
@@ -247,10 +265,6 @@ export class Expression extends ASTNode {
     else return `${this.func.toDescription()} of `+ this.args.map(a  => a.toDescription(level)).join(", ");
       
   }
-
-  toString() {
-    return `(${this.func} ${this.args.join(' ')})`;
-  }
 }
 
 export class IdentifierList extends ASTNode {
@@ -258,6 +272,7 @@ export class IdentifierList extends ASTNode {
     super(from, to, 'identifierList', options);
     this.kind = kind;
     this.ids = ids;
+    this.pieces = ids;
   }
 
   *[Symbol.iterator]() {
@@ -271,10 +286,6 @@ export class IdentifierList extends ASTNode {
     if((this['aria-level'] - level) >= descDepth) return this.options['aria-label'];
     return enumerateList(this.ids, level);
   }
-
-  toString() {
-    return `${this.ids.join(' ')}`;
-  }
 }
 
 export class StructDefinition extends ASTNode {
@@ -282,6 +293,7 @@ export class StructDefinition extends ASTNode {
     super(from, to, 'structDefinition', options);
     this.name = name;
     this.fields = fields;
+    this.pieces = ["(define-struct", name, "(", ...fields, ")", ")"];
   }
 
   *[Symbol.iterator]() {
@@ -295,10 +307,6 @@ export class StructDefinition extends ASTNode {
     return `define ${this.name.toDescription(level)} to be a structure with
             ${this.fields.toDescription(level)}`;
   }
-
-  toString() {
-    return `(define-struct ${this.name} (${this.fields.toString()}))`;
-  }
 }
 
 export class VariableDefinition extends ASTNode {
@@ -306,6 +314,7 @@ export class VariableDefinition extends ASTNode {
     super(from, to, 'variableDefinition', options);
     this.name = name;
     this.body = body;
+    this.pieces = ["(define", name, body, ")"];
   }
 
   toDescription(level){
@@ -319,10 +328,6 @@ export class VariableDefinition extends ASTNode {
     yield this.name;
     yield this.body;
   }
-
-  toString() {
-    return `(define ${this.name} ${this.body})`;
-  }
 }
 
 export class LambdaExpression extends ASTNode {
@@ -330,6 +335,7 @@ export class LambdaExpression extends ASTNode {
     super(from, to, 'lambdaExpression', options);
     this.args = args;
     this.body = body;
+    this.pieces = ["(lambda", "(", args, ")", body, ")"];
   }
 
   *[Symbol.iterator]() {
@@ -344,10 +350,6 @@ export class LambdaExpression extends ASTNode {
             ${this.args.toDescription(level)}, with body:
             ${this.body.toDescription(level)}`;
   }
-
-  toString() {
-    return `(lambda (${this.args.toString()}) ${this.body})`;
-  }
 }
 
 export class FunctionDefinition extends ASTNode {
@@ -356,6 +358,7 @@ export class FunctionDefinition extends ASTNode {
     this.name = name;
     this.params = params;
     this.body = body;
+    this.pieces = ["(define", name, "(", params, ")", body, ")"];
   }
 
   *[Symbol.iterator]() {
@@ -371,10 +374,6 @@ export class FunctionDefinition extends ASTNode {
             ${this.params.toDescription(level)}, with body:
             ${this.body.toDescription(level)}`;
   }
-
-  toString() {
-    return `(define (${this.name} ${this.params.toString()}) ${this.body})`;
-  }
 }
 
 export class CondClause extends ASTNode {
@@ -382,6 +381,7 @@ export class CondClause extends ASTNode {
     super(from, to, 'condClause', options);
     this.testExpr = testExpr;
     this.thenExprs = thenExprs;
+    this.pieces = ["[", testExpr, ...thenExprs, "]"];
   }
 
   *[Symbol.iterator]() {
@@ -396,16 +396,13 @@ export class CondClause extends ASTNode {
     if((this['aria-level'] - level) >= descDepth) return this.options['aria-label'];
     return `condition: if ${this.testExpr.toDescription(level)}, then, ${this.thenExprs.map(te => te.toDescription(level))}`;
   }
-
-  toString() {
-    return `[${this.testExpr} ${this.thenExprs.join(' ')}]`;
-  }
 }
 
 export class CondExpression extends ASTNode {
   constructor(from, to, clauses, options={}) {
     super(from, to, 'condExpression', options);
     this.clauses = clauses;
+    this.pieces = ["(cond", ...clauses, ")"];
   }
 
   *[Symbol.iterator]() {
@@ -420,11 +417,6 @@ export class CondExpression extends ASTNode {
     return `a conditional expression with ${pluralize("condition", this.clauses)}: 
             ${this.clauses.map(c => c.toDescription(level))}`;
   }
-
-  toString() {
-    const clauses = this.clauses.map(c => c.toString()).join(' ');
-    return `(cond ${clauses})`;
-  }
 }
 
 export class IfExpression extends ASTNode {
@@ -433,6 +425,7 @@ export class IfExpression extends ASTNode {
     this.testExpr = testExpr;
     this.thenExpr = thenExpr;
     this.elseExpr = elseExpr;
+    this.pieces = ["(if", testExpr, thenExpr, elseExpr, ")"];
   }
 
   *[Symbol.iterator]() {
@@ -447,10 +440,6 @@ export class IfExpression extends ASTNode {
     return `an if expression: if ${this.testExpr.toDescription(level)}, then ${this.thenExpr.toDescription(level)} `+
             `else ${this.elseExpr.toDescription(level)}`;
   }
-
-  toString() {
-    return `(if ${this.testExpr} ${this.thenExpr} ${this.elseExpr})`;
-  }
 }
 
 export class Literal extends ASTNode {
@@ -463,24 +452,19 @@ export class Literal extends ASTNode {
   *[Symbol.iterator]() {
     yield this;
   }
-
-  toString() {
-    return `${this.value}`;
-  }
+  // override with simpler alternative
+  toString() { return this.value.toString(); }
 }
 
 export class Comment extends ASTNode {
   constructor(from, to, comment, options={}) {
     super(from, to, 'comment', options);
     this.comment = comment;
+    this.pieces = ["#|", comment, "|#"];
   }
 
   *[Symbol.iterator]() {
     yield this;
-  }
-
-  toString() {
-    return `${this.comment}`;
   }
 }
 
@@ -494,10 +478,8 @@ export class Blank extends ASTNode {
   *[Symbol.iterator]() {
     yield this;
   }
-
-  toString() {
-    return `${this.value}`;
-  }
+  // override with simpler alternative
+  toString() { return this.value.toString(); }
 }
 
 export class Sequence extends ASTNode {
@@ -505,6 +487,7 @@ export class Sequence extends ASTNode {
     super(from, to, 'sequence', options);
     this.exprs = exprs;
     this.name = name;
+    this.pieces = ["(", name, ...exprs, ")"];
   }
 
   *[Symbol.iterator]() {
@@ -517,9 +500,5 @@ export class Sequence extends ASTNode {
   toDescription(level) {
     if((this['aria-level'] - level) >= descDepth) return this.options['aria-label'];
     return `a sequence containing ${enumerateList(this.exprs, level)}`;
-  }
-
-  toString() {
-    return `(${this.name} ${this.exprs.join(" ")})`;
   }
 }
